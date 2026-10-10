@@ -1,17 +1,79 @@
-from pydantic import BaseModel
-from pathlib import Path
+from pydantic import BaseModel, ValidationError
 import requests
+from datetime import datetime, timezone
+
+#no print in sdk, only return functions.
+
+#defining what the record looks like
+#blueprint/ digital contract of the data
+#model schema
+class RecordModel(BaseModel):
+    prompt: str
+    response: str
+    timestamp: str
+    model_name: str
 
 
-def main():
-    #defining what the record looks like
-    #blueprint/ digital contract of the data
-    #model schema
-    class Record(BaseModel):
-        prompt: str
-        response: str
-        timestamp: str
-        model_name: str
+
+#blueprint for creating objects
+#when building sdk using class, we are wrapping variables and functions into a single package
+#makes code highly resuable
+#first if the init and self, which is the constructor, which runs automatically exactly when you instantiate it
+class AstroClient:
+    def __init__(self, base_url: str = "http://127.0.0.1:8000", timeout: float = 5.0):
+
+        self.base_url = base_url.rstrip("/")
+
+        #timeout stops the sdk from hanging forever if server never responds.
+        self.timeout = timeout
+
+    #single function to validate data using pydantic and post to backend
+    #converts it to dict
+    def save_record(self, prompt: str, response: str, model_name:str) -> dict:
+            
+        try:
+            #package and validate inputs using pydantic schema
+            #calls the record model function, and adds the inputs from the argument to the rhs
+            #time as utc timezone now
+            record = RecordModel(
+                prompt=prompt,
+                response=response,
+                timestamp=datetime.now(timezone.utc).isoformat(),
+                model_name= model_name
+            )
+        #validation error means that the data was bad
+        except ValidationError as e:
+            return {"Success": False, "error": f"Invalid record: {e}"}
+
+        try:
+            #targetting the endpoint
+            #url = f"{self.base_url}/records"
+            # duming the above set data in it, and adding to the url
+            res = requests.post(f"{self.base_url}/records", json=record.model_dump(), timeout=self.timeout)
+
+        except:
+            return {"Success": False, "error": f"Invalid record: {e}"}
+
+        if res.status_code == 200:
+            return{"Success": True, "data":res.json()}
+
+        return {"success": False, "status": res.status_code, "error": res.text}
+
+    def clear_database(self) -> dict:
+        #function to delete
+        try:
+            res = requests.delete(f"{self.base_url}/records/clear", timeout=self.timeout )
+
+        #requests.RequestException means the n/w or server failed
+        except requests.RequestException as e:
+            return {"Success": False, "error": f"Invalid record: {e}"}
+
+        if res.status_code == 200:
+            return {"Message": res.json().get("message")}
+        else:
+            return {"Status": res.status_code, "error": res.text}
+
+"""
 
     db_file = Path("database.db")
 
@@ -53,6 +115,6 @@ def main():
     #user_json = user.model_dump_json()
     #print(user_json)
 
-main()
 
 
+"""
