@@ -61,7 +61,7 @@ class AstroClient:
             res = requests.post(f"{self.base_url}/records", json=record.model_dump(), timeout=self.timeout)
 
         except:
-            return {"success": False, "error": f"Invalid record: {e}"}
+            return {"success": False, "error": {e}}
 
         if res.status_code == 200:
             return{"success": True, "data":res.json()}
@@ -77,12 +77,23 @@ class AstroClient:
 
         #requests.RequestException means the n/w or server failed
         except requests.RequestException as e:
-            return {"success": False, "error": f"Invalid record: {e}"}
+            return {"success": False, "error": {e}}
 
         if res.status_code == 200:
-            return {"message": res.json().get("message")}
+            return {"success": True, "message": res.json().get("message")}
         else:
-            return {"status": res.status_code, "error": res.text}
+            return {"success": False, "status": res.status_code, "error": res.text}
+
+    def get_records(self) -> dict:
+        try:
+            res = requests.get(f"{self.base_url}/records", timeout= self.timeout)
+        except requests.RequestException as e:
+            return {"success": False, "error": {e}}
+
+        if res.status_code == 200:
+            return {"success": True, "data": res.json()}
+        else:
+            return {"success": False, "status":res.status_code, "error": res.text}
 
 """
 
