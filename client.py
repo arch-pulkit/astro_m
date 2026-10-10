@@ -2,6 +2,15 @@ from pydantic import BaseModel, ValidationError
 import requests
 from datetime import datetime, timezone
 
+"""
+Every SDK method works this way, paired with a server endpoint:
+SDK method (client.py)	        Sends over HTTP	            Server endpoint (app.py)	Runs in SQLite
+save_record	                    POST /records	            create_record	            INSERT
+clear_database	                DELETE /records/clear       clear_all_record	        DELETE
+?	                            GET /records                get_records	                SELECT
+
+"""
+
 #no print in sdk, only return functions.
 
 #defining what the record looks like
@@ -43,7 +52,7 @@ class AstroClient:
             )
         #validation error means that the data was bad
         except ValidationError as e:
-            return {"Success": False, "error": f"Invalid record: {e}"}
+            return {"success": False, "error": f"Invalid record: {e}"}
 
         try:
             #targetting the endpoint
@@ -52,26 +61,28 @@ class AstroClient:
             res = requests.post(f"{self.base_url}/records", json=record.model_dump(), timeout=self.timeout)
 
         except:
-            return {"Success": False, "error": f"Invalid record: {e}"}
+            return {"success": False, "error": f"Invalid record: {e}"}
 
         if res.status_code == 200:
-            return{"Success": True, "data":res.json()}
+            return{"success": True, "data":res.json()}
 
         return {"success": False, "status": res.status_code, "error": res.text}
 
     def clear_database(self) -> dict:
         #function to delete
+        #it sends a msg over HTTP to delete /records/clear
+        #actual deletion happens in app.py clear_all_records where it deletes the entire sql db
         try:
             res = requests.delete(f"{self.base_url}/records/clear", timeout=self.timeout )
 
         #requests.RequestException means the n/w or server failed
         except requests.RequestException as e:
-            return {"Success": False, "error": f"Invalid record: {e}"}
+            return {"success": False, "error": f"Invalid record: {e}"}
 
         if res.status_code == 200:
-            return {"Message": res.json().get("message")}
+            return {"message": res.json().get("message")}
         else:
-            return {"Status": res.status_code, "error": res.text}
+            return {"status": res.status_code, "error": res.text}
 
 """
 

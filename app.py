@@ -78,7 +78,7 @@ def create_record(record: Record):
     finally:
         conn.close()
 
-    return{"id": new_id,"data: ": record }
+    return{"id": new_id,"data": record }
 
 @app.get("/records")
 def get_records():

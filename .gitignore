@@ -2,3 +2,5 @@ info.md
 .venv/
 database.db
 fake_llm.json
+client_json.py
+**/__pycache__/
