@@ -53,4 +53,5 @@ for prompt in prompts:
 
 
 # we have to either store the method called, or use print statement to actually get the return statements
+print()
 print(sdk.get_records())

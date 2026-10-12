@@ -22,6 +22,8 @@ class RecordModel(BaseModel):
     timestamp: str
     model_name: str
 
+# we need try/except for no reply
+# and status check for bad reply
 
 
 #blueprint for creating objects
@@ -60,7 +62,7 @@ class AstroClient:
             # duming the above set data in it, and adding to the url
             res = requests.post(f"{self.base_url}/records", json=record.model_dump(), timeout=self.timeout)
 
-        except:
+        except requests.RequestException as e:
             return {"success": False, "error": {e}}
 
         if res.status_code == 200:

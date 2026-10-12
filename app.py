@@ -1,4 +1,4 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from pathlib import Path
 from pydantic import BaseModel
 import sqlite3
@@ -75,6 +75,10 @@ def create_record(record: Record):
         )
         conn.commit()
         new_id = cursor.lastrowid
+
+    #fast api has in-built raise commands
+    except sqlite3.OperationalError as e:
+        raise HTTPException(status_code=404, detail="Error Code 404")
     finally:
         conn.close()
 
