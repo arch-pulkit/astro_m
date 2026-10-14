@@ -3,6 +3,8 @@ from pathlib import Path
 from pydantic import BaseModel
 import sqlite3
 
+#404 says “the requested resource or route wasn’t found”
+#a 500 says “the server couldn’t complete a valid request.
 app = FastAPI()
 
 #defining what the record looks like
@@ -77,8 +79,9 @@ def create_record(record: Record):
         new_id = cursor.lastrowid
 
     #fast api has in-built raise commands
+    #from e keeps the original exception attached
     except sqlite3.OperationalError as e:
-        raise HTTPException(status_code=404, detail="Error Code 404")
+        raise HTTPException(status_code=500, detail="Failed to save record",) from e
     finally:
         conn.close()
 

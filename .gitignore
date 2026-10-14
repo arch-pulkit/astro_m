@@ -4,3 +4,7 @@ database.db
 fake_llm.json
 client_json.py
 **/__pycache__/
+.pytest_cache
+trial.py
+backup/
+old/
