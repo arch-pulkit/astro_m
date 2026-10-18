@@ -11,9 +11,6 @@ load_dotenv()
 db_url = os.environ.get("ASTRO_DB_PATH")
 db_file = db_url.replace("sqlite:///", "")
 
-
-app = FastAPI()
-
 class Record(BaseModel):
     prompt: str
     response: str
