@@ -9,3 +9,4 @@ trial.py
 backup/
 old/
 tuned_fibinachi.py
+.env

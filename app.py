@@ -2,33 +2,32 @@ from fastapi import FastAPI, HTTPException
 from pathlib import Path
 from pydantic import BaseModel
 import sqlite3
+import os
+from dotenv import load_dotenv
+from contextlib import asynccontextmanager
 
-#404 says “the requested resource or route wasn’t found”
-#a 500 says “the server couldn’t complete a valid request.
+load_dotenv()
+
+db_url = os.environ.get("ASTRO_DB_PATH")
+db_file = db_url.replace("sqlite:///", "")
+
+
 app = FastAPI()
 
-#defining what the record looks like
-#blueprint/ digital contract of the data
 class Record(BaseModel):
     prompt: str
     response: str
     timestamp: str
     model_name: str
 
-#this way its easier to locate the file
-#__file__ is path of app.py itself, so db always lives next to it
-db_file = Path(__file__).parent / "database.db"
 
-#Creating the SQLite file and table automatically if not exists.
+
 def init_db():
     #connecting sqlite to db
     conn = sqlite3.connect(db_file)
     try:
-        # Cursor object, a temp control structure & a bridge b/w Py application and SQLite db.
-        #worker that travels through that pipeline to run commands nd fetch the data
         cursor = conn.cursor()
 
-        #autoincrement is used to increase the id number each time, but it never reuses an id even after deletion
         cursor.execute(
             """
             CREATE TABLE IF NOT EXISTS records (
@@ -43,24 +42,16 @@ def init_db():
     finally:
         conn.close()
 
+#chaning when initializtion happens
 #initialiting the db table when server turns on
-init_db()
+#Lifespan lets FastAPI initlaize db when app starts, rather than when py imports app
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    init_db()
+    yield
+app = FastAPI(lifespan=lifespan)
 
 
-
-#when posting to /records, we tell web server to make it permanent on its backend
-"""
-in post record section what we are doing is loading the json file using path, 
-storing it in another file as read only for checking if data exits or not; 
-then appending the json model dump, then writing and finalising it
-"""
-
-#NEW code entry with SQLite DB
-#first start a connection, then create a cursor to make or see changes
-#then execute these changes with cursor, then commit and close the conention
-#in the link /docs, under records post, in responses loc tells what went wrong, where exactly the problem is
-
-#try and finally gurantees conn.close() works even if execute raises an error
 @app.post("/records")
 def create_record(record: Record):
     conn = sqlite3.connect(db_file)
@@ -78,8 +69,6 @@ def create_record(record: Record):
         conn.commit()
         new_id = cursor.lastrowid
 
-    #fast api has in-built raise commands
-    #from e keeps the original exception attached
     except sqlite3.OperationalError as e:
         raise HTTPException(status_code=500, detail="Failed to save record",) from e
     finally:
