@@ -21,12 +21,16 @@ class RecordModel(BaseModel):
     timestamp: str
     model_name: str
 
-astro_url = os.getenv("ASTRO_BASE_URL")
 
+#constructor to use url
 class AstroClient:
-    def __init__(self, base_url= astro_url, timeout: float = 5.0):
+    def __init__(self, base_url: str | None = None, timeout: float = 5.0):
 
-        self.base_url = base_url.rstrip("/")
+        selected_url = (base_url
+                        or os.getenv("ASTRO_BASE_URL")
+                        or "http://127.0.0.1:8000")
+        
+        self.base_url = selected_url.rstrip("/")
 
         #timeout stops the sdk from hanging forever if server never responds.
         self.timeout = timeout
