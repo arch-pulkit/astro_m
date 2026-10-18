@@ -8,8 +8,11 @@ from contextlib import asynccontextmanager
 
 load_dotenv()
 
-db_url = os.environ.get("ASTRO_DB_PATH")
-db_file = db_url.replace("sqlite:///", "")
+#fallback for db to local 
+
+default_db = f"sqlite:///{Path(__file__).parent / 'database.db'}"
+db_url = os.environ.get("ASTRO_DB_PATH", default_db)
+db_file = db_url.replace("sqlite:///", "", 1)
 
 class Record(BaseModel):
     prompt: str
@@ -75,8 +78,8 @@ def create_record(record: Record):
 
 @app.get("/records")
 def get_records():
+    conn = sqlite3.connect(db_file)
     try:
-        conn = sqlite3.connect(db_file)
         #Row function converts row tuples to Py dict automatically
         conn.row_factory = sqlite3.Row
         cursor = conn.cursor()

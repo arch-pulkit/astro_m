@@ -50,7 +50,7 @@ class AstroClient:
             res = requests.post(f"{self.base_url}/records", json=record.model_dump(), timeout=self.timeout)
 
         except requests.RequestException as e:
-            return {"success": False, "error": {e}}
+            return {"success": False, "error": str(e)}
 
         if res.status_code == 200:
             return{"success": True, "data":res.json()}
@@ -63,7 +63,7 @@ class AstroClient:
 
         #requests.RequestException means the n/w or server failed
         except requests.RequestException as e:
-            return {"success": False, "error": {e}}
+            return {"success": False, "error": str(e)}
 
         if res.status_code == 200:
             return {"success": True, "message": res.json().get("message")}
@@ -74,7 +74,7 @@ class AstroClient:
         try:
             res = requests.get(f"{self.base_url}/records", timeout= self.timeout)
         except requests.RequestException as e:
-            return {"success": False, "error": {e}}
+            return {"success": False, "error": str(e)}
 
         if res.status_code == 200:
             return {"success": True, "data": res.json()}
