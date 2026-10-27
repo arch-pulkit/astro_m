@@ -2,25 +2,27 @@
 
 A lightweight recorder for LLM calls. Your application sends each prompt, response and model name to ASTR-O through a small Python SDK. ASTR-O timestamps the record, validates it, and stores it in SQLite, so you can review every call your app made later.
 
-**Live:** https://astrom-production-ad8b.up.railway.app ([interactive API docs](https://astrom-production-ad8b.up.railway.app/docs))
+The server was originally written in Python with FastAPI and has been rewritten in Go as a learning project. The API is unchanged, so the Python SDK works with it as-is.
+
+**Live:** [https://astrom-production-ad8b.up.railway.app](https://astrom-production-ad8b.up.railway.app)
 
 ## How it works
 
 ```
-your app ──► AstroClient (client.py) ──HTTP/JSON──► FastAPI server (app.py) ──► SQLite
+your app ──► AstroClient (client.py) ──HTTP/JSON──► Go server (app.go) ──► SQLite
 ```
 
-- **Server (`app.py`):** a FastAPI service. It validates incoming records with Pydantic, so malformed requests are rejected with `422`. It writes rows with parameterized SQL (`?` placeholders), so there's no SQL injection, and returns `500` with a short message if the database fails.
+- **Server (`app.go`):** a Go service built on the standard library's `net/http` and `database/sql`, with the pure-Go [`modernc.org/sqlite`](https://pkg.go.dev/modernc.org/sqlite) driver (no C compiler needed). It validates incoming JSON itself: missing fields, `null` values or wrong types are rejected with `422`. It writes rows with parameterized SQL (`?` placeholders), so there's no SQL injection. Database failures are logged on the server and return `500` with a short `{"detail": "..."}` message.
 - **SDK (`client.py`):** `AstroClient` wraps the HTTP calls. It generates a UTC ISO-8601 timestamp, validates the record before sending, applies a request timeout, and **never raises or prints**. Every method returns a dict with a `success` key, so a recorder outage can't crash the application that's using it.
 
 ## API
 
-| Method | Path | Description | Response |
-|---|---|---|---|
-| `GET` | `/` | Health check | `{"Status": "OK"}` |
-| `POST` | `/records` | Save one record | `{"id": 1, "data": {...}}` |
-| `GET` | `/records` | List all records | `[{"id": 1, "prompt": ..., ...}]` |
-| `DELETE` | `/records/clear` | Delete all records and reset ids | `{"message": "data cleared"}` |
+| Method   | Path             | Description                      | Response                          |
+|----------|------------------|----------------------------------|-----------------------------------|
+| `GET`    | `/`              | Health check                     | `{"Status": "OK"}`                |
+| `POST`   | `/records`       | Save one record                  | `{"id": 1, "data": {...}}`        |
+| `GET`    | `/records`       | List all records                 | `[{"id": 1, "prompt": ..., ...}]` |
+| `DELETE` | `/records/clear` | Delete all records and reset ids | `{"message": "data cleared"}`     |
 
 Record body for `POST /records`:
 
@@ -32,6 +34,8 @@ Record body for `POST /records`:
   "model_name": "bolty 2.3"
 }
 ```
+
+All four fields are required. Empty strings are allowed.
 
 ## Using the SDK
 
@@ -54,13 +58,31 @@ else:
 print(astro.get_records())
 ```
 
-| Method | Returns on success | Returns on failure |
-|---|---|---|
-| `save_record(prompt, response, model_name)` | `{"success": True, "data": ...}` | `{"success": False, "error": ...}`, plus `"status"` if the server replied |
-| `get_records()` | `{"success": True, "data": [...]}` | same shape |
-| `clear_database()` | `{"success": True, "message": ...}` | same shape |
+| Method                                      | Returns on success                  | Returns on failure                                                        |
+|---------------------------------------------|-------------------------------------|---------------------------------------------------------------------------|
+| `save_record(prompt, response, model_name)` | `{"success": True, "data": ...}`    | `{"success": False, "error": ...}`, plus `"status"` if the server replied |
+| `get_records()`                             | `{"success": True, "data": [...]}`  | same shape                                                                |
+| `clear_database()`                          | `{"success": True, "message": ...}` | same shape                                                                |
 
 ## Running locally
+
+### Server
+
+Requires Go 1.22+.
+
+```bash
+go mod tidy   # download dependencies
+go run .      # start the server on http://127.0.0.1:8000
+```
+
+Or build a standalone binary:
+
+```bash
+go build -o astro .
+./astro
+```
+
+### SDK
 
 Requires Python 3.10+.
 
@@ -68,11 +90,7 @@ Requires Python 3.10+.
 python -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
-
-uvicorn app:app --reload
 ```
-
-Then open http://127.0.0.1:8000/docs.
 
 To send sample records through the SDK, run this with the server running:
 
@@ -84,40 +102,46 @@ python sdktest.py
 
 ## Configuration
 
-Both variables are optional, and a `.env` file is loaded automatically.
+All variables are optional, and a `.env` file is loaded automatically.
 
-| Variable | Used by | Default | Example |
-|---|---|---|---|
-| `ASTRO_DB_PATH` | server | `database.db` next to `app.py` | `sqlite:////data/astro.db` |
-| `ASTRO_BASE_URL` | SDK | `http://127.0.0.1:8000` | `https://astrom-production-ad8b.up.railway.app` |
+| Variable         | Used by | Default                                 | Example                                         |
+|------------------|---------|-----------------------------------------|-------------------------------------------------|
+| `ASTRO_DB_PATH`  | server  | `database.db` in the working directory  | `sqlite:////data/astro.db`                      |
+| `PORT`           | server  | `8000`                                  | `8080`                                          |
+| `ASTRO_BASE_URL` | SDK     | `http://127.0.0.1:8000`                 | `https://astrom-production-ad8b.up.railway.app` |
 
-## Tests
+The database schema is the same as the original Python version, so existing `database.db` files work with the Go server.
 
-```bash
-python -m pytest
-```
+## Testing
 
-The tests use FastAPI's `TestClient`, so no server needs to be running. A pytest fixture points the app at a temporary SQLite file for each test, so the suite never touches your real database.
+Go unit tests are not written yet (see roadmap). For now, `sdktest.py` works as an end-to-end check: start the server, run the script, and confirm that records are saved, listed and cleared.
 
 ## Deployment
 
-Deployed on [Railway](https://railway.com) from this repo. The start command lives in `railway.toml`:
+Deployed on [Railway](https://railway.com) from this repo. Build and start commands live in `railway.toml`:
 
 ```toml
+[build]
+buildCommand = "go build -o astro ."
+
 [deploy]
-startCommand = "uvicorn app:app --host 0.0.0.0 --port $PORT"
+startCommand = "./astro"
 ```
 
-SQLite lives on a Railway **volume**, and `ASTRO_DB_PATH` points to a file inside the volume's mount path. This keeps records across redeploys; without the volume, the container filesystem is wiped on every deploy.
+Railway provides `PORT` automatically. SQLite lives on a Railway **volume**, and `ASTRO_DB_PATH` points to a file inside the volume's mount path. This keeps records across redeploys; without the volume, the container filesystem is wiped on every deploy.
 
 ## Known limitations
 
-- **No authentication yet.** Every endpoint is public, including `DELETE /records/clear`. An API key is next on the roadmap.
-- SQLite on a single instance, which is fine for a personal recorder but not for many concurrent writers.
+- **No authentication yet.** Every endpoint is public, including `DELETE /records/clear`.
+- SQLite on a single instance, with the connection pool limited to one connection so writes never collide. Fine for a personal recorder, not for heavy concurrent traffic.
 - `POST /records` returns the record nested under `data`, while `GET /records` returns flat rows.
+- No auto-generated API docs page (the FastAPI version had `/docs`).
+- Validation errors return a single message rather than FastAPI's detailed per-field list.
 
 ## Roadmap
 
-- [ ] API-key authentication for write and delete endpoints
-- [ ] Richer records for observability: latency, token counts, cost, errors
-- [ ] Separate the SDK's timeout and connection errors, and flag which failures are retryable
+- Port the server tests to Go using `net/http/httptest`
+- Graceful shutdown on Ctrl+C / redeploy
+- API-key authentication for write and delete endpoints
+- Richer records for observability: latency, token counts, cost, errors
+- Separate the SDK's timeout and connection errors, and flag which failures are retryable
